@@ -1,4 +1,3 @@
-#Requires -Version 5.1
 <#
 .SYNOPSIS
     PowerRename - Advanced file renaming tool for Windows Explorer.
@@ -13,8 +12,9 @@
       - Full undo history
 
 .NOTES
-    Run from PowerShell:  .\PowerRename.ps1
-    Or with a starting path: .\PowerRename.ps1 -StartPath "C:\Photos"
+    Launch via:  PowerRename.bat
+    Or from PS:  powershell -ExecutionPolicy Bypass -File PowerRename.ps1
+    With path:   powershell -ExecutionPolicy Bypass -File PowerRename.ps1 -StartPath "C:\Photos"
 #>
 
 [CmdletBinding()]
@@ -23,17 +23,21 @@ param(
 )
 
 # ── Strict mode & encoding ───────────────────────────────────────────────────
-Set-StrictMode -Version Latest
+Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Continue'
-try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch { <# safe to ignore on non-console hosts #> }
+try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch { }
 
 # ══════════════════════════════════════════════════════════════════════════════
 #  GLOBALS
 # ══════════════════════════════════════════════════════════════════════════════
-$Script:CurrentPath    = if ($StartPath -and (Test-Path $StartPath)) { (Resolve-Path $StartPath).Path } else { (Get-Location).Path }
+if ($StartPath -and (Test-Path $StartPath)) {
+    $Script:CurrentPath = (Resolve-Path $StartPath).Path
+} else {
+    $Script:CurrentPath = (Get-Location).Path
+}
 $Script:FileFilter     = '*'
 $Script:IncludeFolders = $false
-$Script:UndoStack      = [System.Collections.Generic.List[hashtable]]::new()
+$Script:UndoStack      = New-Object 'System.Collections.Generic.List[hashtable]'
 
 # The wildcard placeholder: uses the pipe character (|) which is invalid in
 # Windows filenames, so it can never collide with real filename text.
@@ -97,7 +101,7 @@ function Show-Preview {
     #>
     param([array]$Files, [scriptblock]$RenameLogic)
 
-    $map = [System.Collections.Generic.List[hashtable]]::new()
+    $map = (New-Object 'System.Collections.Generic.List[hashtable]')
     foreach ($f in $Files) {
         $newName = & $RenameLogic $f
         if ($newName -and $newName -ne $f.Name) {
@@ -136,7 +140,7 @@ function Invoke-Rename {
         return
     }
 
-    $undoBatch = [System.Collections.Generic.List[hashtable]]::new()
+    $undoBatch = (New-Object 'System.Collections.Generic.List[hashtable]')
     $errors    = 0
 
     foreach ($entry in $Map) {
@@ -253,7 +257,7 @@ function Build-FindPattern {
         $options = [System.Text.RegularExpressions.RegexOptions]::IgnoreCase
     }
 
-    return [regex]::new($pattern, $options)
+    return New-Object 'System.Text.RegularExpressions.Regex' -ArgumentList $pattern, $options
 }
 
 function Invoke-FindReplace {
@@ -387,7 +391,7 @@ function Menu-Numbering {
     }.GetNewClosure()
 
     # Build map manually so counter increments
-    $map = [System.Collections.Generic.List[hashtable]]::new()
+    $map = (New-Object 'System.Collections.Generic.List[hashtable]')
     foreach ($f in $files) {
         $num  = $counter.ToString().PadLeft($padW, '0')
         $stem = [System.IO.Path]::GetFileNameWithoutExtension($f.Name)
