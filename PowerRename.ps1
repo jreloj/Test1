@@ -24,8 +24,8 @@ param(
 
 # ── Strict mode & encoding ───────────────────────────────────────────────────
 Set-StrictMode -Version Latest
-$ErrorActionPreference = 'Stop'
-[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$ErrorActionPreference = 'Continue'
+try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch { <# safe to ignore on non-console hosts #> }
 
 # ══════════════════════════════════════════════════════════════════════════════
 #  GLOBALS
@@ -66,10 +66,10 @@ function Write-Prompt {
 
 function Get-TargetFiles {
     <# Returns the files (and optionally folders) in $Script:CurrentPath. #>
-    $items = Get-ChildItem -Path $Script:CurrentPath -Filter $Script:FileFilter -File
+    $items = @(Get-ChildItem -Path $Script:CurrentPath -Filter $Script:FileFilter -File -ErrorAction SilentlyContinue)
     if ($Script:IncludeFolders) {
-        $items = @(Get-ChildItem -Path $Script:CurrentPath -Filter $Script:FileFilter -File) +
-                 @(Get-ChildItem -Path $Script:CurrentPath -Filter $Script:FileFilter -Directory)
+        $items = @(Get-ChildItem -Path $Script:CurrentPath -Filter $Script:FileFilter -File -ErrorAction SilentlyContinue) +
+                 @(Get-ChildItem -Path $Script:CurrentPath -Filter $Script:FileFilter -Directory -ErrorAction SilentlyContinue)
     }
     return @($items | Sort-Object Name)
 }
@@ -666,33 +666,55 @@ function Show-MainMenu {
 }
 
 # ── Entry point ──────────────────────────────────────────────────────────────
-$running = $true
-while ($running) {
-    Show-MainMenu
-    $choice = Read-Host
+try {
+    $running = $true
+    while ($running) {
+        Show-MainMenu
+        $choice = Read-Host
 
-    switch ($choice.ToUpper()) {
-        '1' { Menu-ChangePath }
-        '2' { Menu-SetFilter }
-        '3' { Menu-ToggleFolders }
-        '4' { Menu-ListFiles }
-        '5' { Menu-Numbering }
-        '6' { Menu-FindReplace }
-        '7' { Menu-Convention }
-        '8' { Menu-ChangeExtension }
-        '9' { Menu-TrimPad }
-        'U' { Invoke-Undo }
-        'Q' { $running = $false }
-        default { Write-Status "Invalid choice." 'Red' }
+        try {
+            switch ($choice.ToUpper()) {
+                '1' { Menu-ChangePath }
+                '2' { Menu-SetFilter }
+                '3' { Menu-ToggleFolders }
+                '4' { Menu-ListFiles }
+                '5' { Menu-Numbering }
+                '6' { Menu-FindReplace }
+                '7' { Menu-Convention }
+                '8' { Menu-ChangeExtension }
+                '9' { Menu-TrimPad }
+                'U' { Invoke-Undo }
+                'Q' { $running = $false }
+                default { Write-Status "Invalid choice." 'Red' }
+            }
+        }
+        catch {
+            Write-Host ""
+            Write-Host "  ERROR in operation: $($_.Exception.Message)" -ForegroundColor Red
+            Write-Host "  $($_.ScriptStackTrace)" -ForegroundColor DarkRed
+        }
+
+        if ($running) {
+            Write-Host ""
+            Write-Host "  Press Enter to continue…" -ForegroundColor DarkGray -NoNewline
+            Read-Host
+        }
     }
 
-    if ($running) {
-        Write-Host ""
-        Write-Host "  Press Enter to continue…" -ForegroundColor DarkGray -NoNewline
-        Read-Host
-    }
+    Write-Host ""
+    Write-Host "  Goodbye." -ForegroundColor Cyan
+    Write-Host ""
 }
-
-Write-Host ""
-Write-Host "  Goodbye." -ForegroundColor Cyan
-Write-Host ""
+catch {
+    Write-Host ""
+    Write-Host "  ════════════════════════════════════════" -ForegroundColor Red
+    Write-Host "  FATAL ERROR — PowerRename could not run" -ForegroundColor Red
+    Write-Host "  ════════════════════════════════════════" -ForegroundColor Red
+    Write-Host ""
+    Write-Host "  $($_.Exception.Message)" -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "  $($_.ScriptStackTrace)" -ForegroundColor DarkGray
+    Write-Host ""
+    Write-Host "  Press Enter to close…" -ForegroundColor Gray -NoNewline
+    Read-Host
+}
